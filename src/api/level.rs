@@ -1,12 +1,12 @@
 #[derive(Debug)]
 pub enum Level {
     Unrated,
-    Bronze(u8),    // 1 ~ 5
-    Silver(u8),    // 1 ~ 5
-    Gold(u8),      // 1 ~ 5
-    Platinum(u8),  // 1 ~ 5
-    Diamond(u8),   // 1 ~ 5
-    Ruby(u8),      // 1 ~ 5
+    Bronze(u8),   // 1 ~ 5
+    Silver(u8),   // 1 ~ 5
+    Gold(u8),     // 1 ~ 5
+    Platinum(u8), // 1 ~ 5
+    Diamond(u8),  // 1 ~ 5
+    Ruby(u8),     // 1 ~ 5
 }
 
 impl Level {

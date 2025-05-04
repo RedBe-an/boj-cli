@@ -1,4 +1,4 @@
-use std::{env, fs, io, path::PathBuf};
+use std::{env, fs, io};
 use toml::{Table, Value};
 
 pub fn init() {

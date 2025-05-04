@@ -36,7 +36,7 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init {} => init::init(),
+        Commands::Init {} => init::init().unwrap(),
         Commands::Login {} => login::login().await,
         Commands::Run { problem_id } => run::run(problem_id).await,
         Commands::Add { problem_id } => add::add(problem_id).await,

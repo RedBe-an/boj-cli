@@ -2,8 +2,8 @@ use crate::api::level::Level;
 use crate::api::test_case::TestCase;
 use once_cell::sync::Lazy;
 use reqwest::header::ACCEPT;
+use scraper::{Html, Selector};
 use serde::Deserialize;
-use thirtyfour::prelude::*;
 
 static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
     reqwest::Client::builder()
@@ -56,20 +56,44 @@ impl Problem {
     }
 
     pub async fn fetch(problem_id: usize) -> anyhow::Result<Self> {
-        // 1) Solved.ac API 로 기본 정보 가져오기
-        let (title, level) = Self::fetch_problem_metadata(problem_id).await?;
+        let (meta, page_html) = tokio::try_join!(
+            Self::fetch_problem_metadata(problem_id),
+            Self::fetch_problem_page(problem_id),
+        )?;
 
-        // 2) Baekjoon 문제 페이지 스크래핑
-        let driver = Self::initialize_webdriver().await?;
-        driver
-            .get(format!("https://www.acmicpc.net/problem/{}", problem_id))
-            .await?;
+        let (title, level) = meta;
+        let document = Html::parse_document(&page_html);
 
-        // 3) 입력·출력 설명 스크래핑
-        let (description, input_desc, output_desc) =
-            Self::scrape_problem_description(&driver).await?;
+        // 셀렉터를 static 으로 캐시
+        static DESC_SEL: Lazy<Selector> =
+            Lazy::new(|| Selector::parse("div#problem_description p").unwrap());
+        static INPUT_SEL: Lazy<Selector> =
+            Lazy::new(|| Selector::parse("div#problem_input p").unwrap());
+        static OUTPUT_SEL: Lazy<Selector> =
+            Lazy::new(|| Selector::parse("div#problem_output p").unwrap());
+        static SAMPLE_INP: Lazy<Selector> = Lazy::new(|| {
+            Selector::parse("pre#sample-input-1, pre[id^=\"sample-input-\"]").unwrap()
+        });
+        static SAMPLE_OUT: Lazy<Selector> = Lazy::new(|| {
+            Selector::parse("pre#sample-output-1, pre[id^=\"sample-output-\"]").unwrap()
+        });
 
-        // 4) 문제 객체 생성
+        let description = document
+            .select(&*DESC_SEL)
+            .map(|e| e.text().collect::<String>())
+            .next()
+            .unwrap_or_default();
+        let input_desc = document
+            .select(&*INPUT_SEL)
+            .map(|e| e.text().collect::<String>())
+            .next()
+            .unwrap_or_default();
+        let output_desc = document
+            .select(&*OUTPUT_SEL)
+            .map(|e| e.text().collect::<String>())
+            .next()
+            .unwrap_or_default();
+
         let mut problem = Problem::new(
             problem_id,
             title,
@@ -79,10 +103,17 @@ impl Problem {
             level,
         );
 
-        // 5) 예제 입출력 스크래핑
-        Self::scrape_test_cases(&driver, &mut problem).await?;
+        // 예제 입출력 파싱
+        for (inp, outp) in document
+            .select(&*SAMPLE_INP)
+            .zip(document.select(&*SAMPLE_OUT))
+        {
+            problem.add_test_case(
+                inp.text().collect::<String>(),
+                outp.text().collect::<String>(),
+            );
+        }
 
-        driver.quit().await?;
         Ok(problem)
     }
 
@@ -107,58 +138,15 @@ impl Problem {
         Ok((title, level))
     }
 
-    async fn initialize_webdriver() -> anyhow::Result<WebDriver> {
-        let mut caps: thirtyfour::ChromeCapabilities = DesiredCapabilities::chrome();
-
-        caps.set_headless()?;
-        caps.add_arg("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64)")?;
-
-        let driver = WebDriver::new("http://localhost:4444", caps).await?;
-        Ok(driver)
-    }
-
-    async fn scrape_problem_description(
-        driver: &WebDriver,
-    ) -> anyhow::Result<(String, String, String)> {
-        // 문제 설명 요소를 찾아 텍스트만 추출
-        let desc_elem = driver.find(By::Css("div#problem_description p")).await?;
-        let description = desc_elem.text().await?;
-
-        let input_desc = driver
-            .find(By::Css("div#problem_input p"))
+    async fn fetch_problem_page(problem_id: usize) -> anyhow::Result<String> {
+        let url = format!("https://www.acmicpc.net/problem/{}", problem_id);
+        let res = CLIENT
+            .get(&url)
+            .send()
             .await?
+            .error_for_status()?
             .text()
             .await?;
-
-        let output_desc = driver
-            .find(By::Css("div#problem_output p"))
-            .await?
-            .text()
-            .await?;
-
-        Ok((description, input_desc, output_desc))
-    }
-
-    async fn scrape_test_cases(driver: &WebDriver, problem: &mut Problem) -> anyhow::Result<()> {
-        let mut idx = 1;
-        loop {
-            let input_id = format!("sample-input-{}", idx);
-            let output_id = format!("sample-output-{}", idx);
-
-            let inp_elem = driver.find(By::Id(&input_id)).await;
-            let outp_elem = driver.find(By::Id(&output_id)).await;
-
-            // 더 이상 샘플이 없으면 종료
-            if inp_elem.is_err() || outp_elem.is_err() {
-                break;
-            }
-
-            let inp = inp_elem?.text().await?;
-            let outp = outp_elem?.text().await?;
-            problem.add_test_case(inp, outp);
-            idx += 1;
-        }
-
-        Ok(())
+        Ok(res)
     }
 }

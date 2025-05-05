@@ -1,4 +1,5 @@
-use std::{env, fs, io, path::Path};
+use std::{env, io, path::Path};
+use crate::commands::utils::{create_dir_all, copy_dir, write_file};
 use toml::{Table, Value};
 
 // Main initialization function
@@ -18,8 +19,8 @@ fn create_directory_structure(base_dir: &Path) -> io::Result<()> {
     let archive_dir = base_dir.join("archive");
     let problems_dir = base_dir.join("problems");
 
-    fs::create_dir_all(&archive_dir)?;
-    fs::create_dir_all(&problems_dir)?;
+    create_dir_all(&archive_dir)?;
+    create_dir_all(&problems_dir)?;
 
     Ok(())
 }
@@ -29,7 +30,7 @@ fn init_config() -> io::Result<()> {
     let current_dir = env::current_dir()?;
     let config_dir = current_dir.join(".boj");
 
-    fs::create_dir_all(&config_dir)?;
+    create_dir_all(&config_dir)?;
     copy_templates(&current_dir, &config_dir)?;
     create_config_file(&config_dir)?;
 
@@ -38,17 +39,9 @@ fn init_config() -> io::Result<()> {
 
 // Copy template files to config directory
 fn copy_templates(current_dir: &Path, config_dir: &Path) -> io::Result<()> {
-    let templates_dir = current_dir.join("src/templates");
+    let templates_src = current_dir.join("src/templates");
     let templates_dest = config_dir.join("templates");
-
-    fs::create_dir_all(&templates_dest)?;
-
-    for entry in fs::read_dir(templates_dir)? {
-        let entry = entry?;
-        let file_name = entry.file_name();
-        let dest_path = templates_dest.join(file_name);
-        fs::copy(entry.path(), dest_path)?;
-    }
+    copy_dir(&templates_src, &templates_dest)?;
 
     Ok(())
 }
@@ -58,10 +51,9 @@ fn create_config_file(config_dir: &Path) -> io::Result<()> {
     let config_path = config_dir.join("config.toml");
     let config = create_default_config();
 
-    let default_config =
-        toml::to_string(&config).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-    fs::write(config_path, default_config)?;
+    let default_config = toml::to_string(&config)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    write_file(config_path, &default_config)?;
     Ok(())
 }
 

@@ -4,6 +4,15 @@ use once_cell::sync::Lazy;
 use reqwest::header::ACCEPT;
 use scraper::{Html, Selector};
 use serde::Deserialize;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ProblemError {
+    #[error("HTTP request failed: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("HTML parse error: {0}")]
+    Parse(String),
+}
 
 static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
     reqwest::Client::builder()
@@ -14,7 +23,7 @@ static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
 
 #[derive(Debug)]
 pub struct Problem {
-    pub id: usize,
+    pub id: u32,
     pub title: String,
     pub description: String,
     pub input_desc: String,
@@ -32,7 +41,7 @@ struct ApiProblem {
 
 impl Problem {
     pub fn new(
-        id: usize,
+        id: u32,
         title: String,
         description: String,
         input_desc: String,
@@ -55,7 +64,7 @@ impl Problem {
         self.test_cases.push(test_case);
     }
 
-    pub async fn fetch(problem_id: usize) -> anyhow::Result<Self> {
+    pub async fn fetch(problem_id: u32) -> Result<Self, ProblemError> {
         let (meta, page_html) = tokio::try_join!(
             Self::fetch_problem_metadata(problem_id),
             Self::fetch_problem_page(problem_id),
@@ -82,17 +91,17 @@ impl Problem {
             .select(&*DESC_SEL)
             .map(|e| e.text().collect::<String>())
             .next()
-            .unwrap_or_default();
+            .ok_or_else(|| ProblemError::Parse("Missing problem description".into()))?;
         let input_desc = document
             .select(&*INPUT_SEL)
             .map(|e| e.text().collect::<String>())
             .next()
-            .unwrap_or_default();
+            .ok_or_else(|| ProblemError::Parse("Missing input description".into()))?;
         let output_desc = document
             .select(&*OUTPUT_SEL)
             .map(|e| e.text().collect::<String>())
             .next()
-            .unwrap_or_default();
+            .ok_or_else(|| ProblemError::Parse("Missing output description".into()))?;
 
         let mut problem = Problem::new(
             problem_id,
@@ -117,7 +126,7 @@ impl Problem {
         Ok(problem)
     }
 
-    async fn fetch_problem_metadata(problem_id: usize) -> anyhow::Result<(String, Level)> {
+    async fn fetch_problem_metadata(problem_id: u32) -> Result<(String, Level), reqwest::Error> {
         let url = format!(
             "https://solved.ac/api/v3/problem/show?problemId={}",
             problem_id
@@ -138,7 +147,7 @@ impl Problem {
         Ok((title, level))
     }
 
-    async fn fetch_problem_page(problem_id: usize) -> anyhow::Result<String> {
+    async fn fetch_problem_page(problem_id: u32) -> Result<String, reqwest::Error> {
         let url = format!("https://www.acmicpc.net/problem/{}", problem_id);
         let res = CLIENT
             .get(&url)

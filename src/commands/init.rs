@@ -81,7 +81,7 @@ fn add_language_configs(config: &mut Table) {
             language: "python3",
             main_file: "main.py",
             source_templates: None,
-            run_cmd: Some("python3 $file"),
+            run_cmd: Some("python $file"),
             compile_cmd: None,
             execute_cmd: None,
             after_cmd: None,
@@ -197,22 +197,35 @@ fn add_filetype_section(config: &mut Table, filetype: &str, lang_config: Languag
     }
 
     if let Some(cmd) = lang_config.run_cmd {
-        section.insert("run".to_string(), Value::String(cmd.to_string()));
+        // $file → main_file 치환
+        let cmd_str = cmd.replace("$file", lang_config.main_file);
+        section.insert("run".to_string(), Value::String(cmd_str));
     }
 
     if let Some(cmd) = lang_config.compile_cmd {
-        section.insert("compile".to_string(), Value::String(cmd.to_string()));
+        // $file → main_file 치환
+        let cmd_str = cmd.replace("$file", lang_config.main_file);
+        section.insert("compile".to_string(), Value::String(cmd_str));
     }
 
     if let Some(cmd) = lang_config.execute_cmd {
-        section.insert("run".to_string(), Value::String(cmd.to_string()));
+        // $file → main_file 치환
+        let cmd_str = cmd.replace("$file", lang_config.main_file);
+        section.insert("run".to_string(), Value::String(cmd_str));
     }
 
     if let Some(cmd) = lang_config.after_cmd {
         section.insert("after".to_string(), Value::String(cmd.to_string()));
     }
 
-    config.insert(format!("filetype.{}", filetype), Value::Table(section));
+    // "filetype" 하위에 서브테이블로 삽입
+    if let Some(Value::Table(ft)) = config.get_mut("filetype") {
+        ft.insert(filetype.to_string(), Value::Table(section));
+    } else {
+        let mut ft = Table::new();
+        ft.insert(filetype.to_string(), Value::Table(section));
+        config.insert("filetype".to_string(), Value::Table(ft));
+    }
 }
 
 // Create general configuration section

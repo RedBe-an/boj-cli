@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::{self};
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 
 use crate::api::problem::Problem;
 use crate::config::Config;
@@ -24,21 +25,24 @@ pub enum AddError {
 
 type Result<T> = std::result::Result<T, AddError>;
 
+/// Adds a problem to the workspace by fetching its details and setting up the directory
 pub async fn add(problem_id: u32, force: bool, extension_arg: String) -> Result<()> {
     check_initialization()?;
 
+    let mut driver = start_chromedriver()?;
+
     let problem_dir = ensure_problem_directory(problem_id, force)?;
     let problem = fetch_problem(problem_id).await?;
-
     let config = Config::load().map_err(|e| AddError::ConfigError(e.to_string()))?;
     let extension = determine_extension(&extension_arg, &config);
-
     setup_problem_directory(&problem_dir, &problem, &extension)?;
-
     println!("Successfully added problem {}", problem_id);
+
+    driver.kill().map_err(AddError::IoError)?;
     Ok(())
 }
 
+/// Checks if the workspace is initialized
 fn check_initialization() -> Result<()> {
     if !is_initialized() {
         return Err(AddError::NotInitialized);
@@ -46,6 +50,7 @@ fn check_initialization() -> Result<()> {
     Ok(())
 }
 
+/// Ensures the problem directory exists, creates it if necessary
 fn ensure_problem_directory(problem_id: u32, force: bool) -> Result<PathBuf> {
     let problem_dir = format!("problems/{}", problem_id);
     let path = Path::new(&problem_dir);
@@ -57,12 +62,14 @@ fn ensure_problem_directory(problem_id: u32, force: bool) -> Result<PathBuf> {
     Ok(PathBuf::from(problem_dir))
 }
 
+/// Fetches problem details from the remote API
 async fn fetch_problem(problem_id: u32) -> Result<Problem> {
     Problem::fetch(problem_id)
         .await
         .map_err(|e| AddError::FetchError(e.to_string()))
 }
 
+/// Determines the file extension to use based on arguments and config
 fn determine_extension(extension_arg: &str, config: &Config) -> String {
     if extension_arg == "nil" {
         let default_ext = config.default_extension();
@@ -73,6 +80,7 @@ fn determine_extension(extension_arg: &str, config: &Config) -> String {
     }
 }
 
+/// Sets up the problem directory with source files, description and test cases
 fn setup_problem_directory(
     problem_dir: &PathBuf,
     problem: &Problem,
@@ -90,31 +98,32 @@ fn setup_problem_directory(
     Ok(())
 }
 
+/// Creates the source file for the problem using the appropriate template
 fn create_source_file(problem_dir: &PathBuf, extension: &str) -> Result<()> {
-    // templates 폴더 안의 상대 경로
     let file_name = if extension == "java" {
         "Main.java"
     } else {
         &format!("default.{}", extension)
     };
 
-    // include_dir 로 포함된 파일 찾기
     let file = TEMPLATES
         .get_file(file_name)
-        .ok_or_else(|| AddError::ConfigError(format!("템플릿 파일이 없습니다: {}", file_name)))?;
+        .ok_or_else(|| AddError::ConfigError(format!("Template file not found: {}", file_name)))?;
 
     let contents = file
         .contents_utf8()
-        .ok_or_else(|| AddError::ConfigError(format!("{} 파일이 UTF-8이 아닙니다", file_name)))?;
+        .ok_or_else(|| AddError::ConfigError(format!("{} file is not UTF-8", file_name)))?;
 
     let target = problem_dir.join(format!("main.{}", extension));
     fs::write(&target, contents).map_err(AddError::IoError)
 }
 
+/// Checks if the workspace is initialized by looking for the .boj directory
 pub fn is_initialized() -> bool {
     Path::new(".boj").exists()
 }
 
+/// Creates a markdown file with the problem description
 fn create_description_file(problem_dir: &PathBuf, problem: &Problem) -> Result<()> {
     let description_file = problem_dir.join(format!("{}.md", problem.id));
     let content = format!(
@@ -131,6 +140,7 @@ fn create_description_file(problem_dir: &PathBuf, problem: &Problem) -> Result<(
     Ok(())
 }
 
+/// Creates test case input and output files
 fn create_testcase_files(problem_dir: &PathBuf, problem: &Problem) -> Result<()> {
     for (i, test_case) in problem.test_cases.iter().enumerate() {
         let test_case_dir = problem_dir.join("testcases").join(format!("{}", i + 1));
@@ -143,16 +153,32 @@ fn create_testcase_files(problem_dir: &PathBuf, problem: &Problem) -> Result<()>
     Ok(())
 }
 
+/// Extracts the chromedriver executable from embedded resources to the local filesystem
 fn extract_chromedriver() -> Result<std::path::PathBuf> {
-    // DRIVER_FILES 에 포함된 chromedriver.exe 가져오기
     let file = DRIVER_FILES
         .get_file("chromedriver.exe")
-        .ok_or_else(|| AddError::ConfigError("chromedriver.exe 파일이 없습니다".into()))?;
+        .ok_or_else(|| AddError::ConfigError("chromedriver.exe file not found".into()))?;
 
     let bytes = file.contents();
     let out_dir = std::path::PathBuf::from(".boj/bin");
     std::fs::create_dir_all(&out_dir)?;
     let target = out_dir.join("chromedriver.exe");
-    std::fs::write(&target, bytes).map_err(AddError::IoError)?;
+
+    if !target.exists() {
+        std::fs::write(&target, bytes)?;
+    }
+
     Ok(target)
+}
+
+/// Starts a chromedriver process on port 4444 and returns the child process
+fn start_chromedriver() -> Result<Child> {
+    let exe_path = extract_chromedriver()?;
+    let child = Command::new(exe_path)
+        .arg("--port=4444")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(AddError::IoError)?;
+    Ok(child)
 }

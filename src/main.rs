@@ -1,9 +1,9 @@
 pub mod api;
 pub mod commands;
-pub mod utils;
 pub mod config;
-pub mod templates;
 pub mod driver;
+pub mod templates;
+pub mod utils;
 
 use crate::commands::{init, login, run};
 use clap::{Parser, Subcommand};
@@ -49,6 +49,10 @@ async fn main() {
         Commands::Init {} => init::init().unwrap(),
         Commands::Login {} => login::login().await.unwrap(),
         Commands::Run { problem_id } => run::run(problem_id).await,
-        Commands::Add { problem_id , force, extension} => add::add(problem_id, force, extension).await.unwrap(),
+        Commands::Add {
+            problem_id,
+            force,
+            extension,
+        } => add::add(problem_id, force, extension).await.unwrap(),
     }
 }

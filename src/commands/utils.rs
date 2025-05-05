@@ -23,8 +23,8 @@ pub fn write_file<P: AsRef<Path>>(path: P, content: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_create_and_copy_dir_and_write_file() {

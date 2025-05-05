@@ -1,5 +1,5 @@
+use crate::commands::utils::{copy_dir, create_dir_all, write_file};
 use std::{env, io, path::Path};
-use crate::commands::utils::{create_dir_all, copy_dir, write_file};
 use toml::{Table, Value};
 
 // Main initialization function
@@ -51,8 +51,8 @@ fn create_config_file(config_dir: &Path) -> io::Result<()> {
     let config_path = config_dir.join("config.toml");
     let config = create_default_config();
 
-    let default_config = toml::to_string(&config)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let default_config =
+        toml::to_string(&config).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     write_file(config_path, &default_config)?;
     Ok(())
 }

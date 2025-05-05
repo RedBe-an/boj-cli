@@ -1,12 +1,12 @@
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::io::{self};
+use std::path::{Path, PathBuf};
 
-use thiserror::Error;
-use crate::config::Config;
 use crate::api::problem::Problem;
-use crate::templates::TEMPLATES;
+use crate::config::Config;
 use crate::driver::DRIVER_FILES;
+use crate::templates::TEMPLATES;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AddError {
@@ -73,7 +73,11 @@ fn determine_extension(extension_arg: &str, config: &Config) -> String {
     }
 }
 
-fn setup_problem_directory(problem_dir: &PathBuf, problem: &Problem, extension: &str) -> Result<()> {
+fn setup_problem_directory(
+    problem_dir: &PathBuf,
+    problem: &Problem,
+    extension: &str,
+) -> Result<()> {
     fs::create_dir_all(problem_dir)?;
     fs::create_dir_all(problem_dir.join("testcases"))?;
 
@@ -115,8 +119,12 @@ fn create_description_file(problem_dir: &PathBuf, problem: &Problem) -> Result<(
     let description_file = problem_dir.join(format!("{}.md", problem.id));
     let content = format!(
         "# {}\n\n## 문제 설명 \n{}\n\n## 입력\n{}\n\n## 출력\n{}\n\n## 예제 입력\n```\n{}```\n\n## 예제 출력\n```\n{}```\n",
-        problem.title, problem.description, problem.input_desc, problem.output_desc, 
-        problem.test_cases[0].input, problem.test_cases[0].output
+        problem.title,
+        problem.description,
+        problem.input_desc,
+        problem.output_desc,
+        problem.test_cases[0].input,
+        problem.test_cases[0].output
     );
 
     fs::write(description_file, content)?;

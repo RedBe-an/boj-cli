@@ -1,6 +1,6 @@
+use crate::commands::add::AddError;
 use serde::Deserialize;
 use std::fs;
-use crate::commands::add::AddError;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -28,13 +28,17 @@ mod tests {
 
     #[test]
     fn default_extension_when_none() {
-        let config = Config { default_filetype: None };
+        let config = Config {
+            default_filetype: None,
+        };
         assert_eq!(config.default_extension(), "py");
     }
 
     #[test]
     fn default_extension_custom() {
-        let config = Config { default_filetype: Some("rs".to_string()) };
+        let config = Config {
+            default_filetype: Some("rs".to_string()),
+        };
         assert_eq!(config.default_extension(), "rs");
     }
 }

@@ -1,7 +1,7 @@
 use crate::config::Config;
+use std::error::Error;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::error::Error;
 
 pub async fn run(problem_id: u32) -> Result<(), Box<dyn std::error::Error>> {
     let problem_dir = format!("problems/{}", problem_id);
@@ -48,7 +48,9 @@ pub async fn run_solution(problem_id: &u32, input: &str) -> Result<String, Box<d
     let problem_dir = format!("problems/{}", problem_id);
 
     // 2. main 파일을 가진 파일타입 섹션 찾기
-    let (_ext, ft) = config.filetype.iter()
+    let (_ext, ft) = config
+        .filetype
+        .iter()
         .find(|(_, ft)| std::path::Path::new(&problem_dir).join(&ft.main).exists())
         .ok_or("no matching filetype section")?;
 
@@ -69,7 +71,11 @@ pub async fn run_solution(problem_id: &u32, input: &str) -> Result<String, Box<d
 }
 
 // helper: 커맨드를 실행하고 stdout 리턴
-fn execute_command(cmd: &str, workdir: &str, input: Option<&str>) -> Result<String, Box<dyn Error>> {
+fn execute_command(
+    cmd: &str,
+    workdir: &str,
+    input: Option<&str>,
+) -> Result<String, Box<dyn Error>> {
     // 1. workdir 을 절대 경로로 변환
     let abs_workdir = std::fs::canonicalize(workdir)?;
 
@@ -82,14 +88,22 @@ fn execute_command(cmd: &str, workdir: &str, input: Option<&str>) -> Result<Stri
 
     // 3. 해당 문제 폴더를 CWD 로 설정하고 실행
     c.current_dir(abs_workdir)
-     .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
-     .stdout(Stdio::piped())
-     .stderr(Stdio::inherit());
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
 
     let mut child = c.spawn()?;
 
     if let Some(stdin_data) = input {
-        child.stdin.as_mut().unwrap().write_all(stdin_data.as_bytes())?;
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(stdin_data.as_bytes())?;
     }
 
     let output = child.wait_with_output()?;

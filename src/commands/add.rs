@@ -114,8 +114,13 @@ fn create_source_file(problem_dir: &PathBuf, extension: &str) -> Result<()> {
         .contents_utf8()
         .ok_or_else(|| AddError::ConfigError(format!("{} file is not UTF-8", file_name)))?;
 
-    let target = problem_dir.join(format!("main.{}", extension));
-    fs::write(&target, contents).map_err(AddError::IoError)
+    let target = if extension == "java" {
+        problem_dir.join("Main.java")
+    } else {
+        problem_dir.join(format!("main.{}", extension))
+    };
+
+    fs::write(target, contents).map_err(AddError::IoError)
 }
 
 /// Checks if the workspace is initialized by looking for the .boj directory

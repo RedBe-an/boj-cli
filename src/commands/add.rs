@@ -159,7 +159,7 @@ fn create_testcase_files(problem_dir: &PathBuf, problem: &Problem) -> Result<()>
 }
 
 /// Extracts the chromedriver executable from embedded resources to the local filesystem
-fn extract_chromedriver() -> Result<std::path::PathBuf> {
+pub fn extract_chromedriver() -> Result<std::path::PathBuf> {
     let file = DRIVER_FILES
         .get_file("chromedriver.exe")
         .ok_or_else(|| AddError::ConfigError("chromedriver.exe file not found".into()))?;
@@ -177,7 +177,7 @@ fn extract_chromedriver() -> Result<std::path::PathBuf> {
 }
 
 /// Starts a chromedriver process on port 4444 and returns the child process
-fn start_chromedriver() -> Result<Child> {
+pub fn start_chromedriver() -> Result<Child> {
     let exe_path = extract_chromedriver()?;
     let child = Command::new(exe_path)
         .arg("--port=4444")

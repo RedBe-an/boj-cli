@@ -7,7 +7,7 @@ pub mod utils;
 
 use crate::commands::{init, login, run};
 use clap::{Parser, Subcommand};
-use commands::add;
+use commands::{add, submit};
 
 #[derive(Parser)]
 #[command(name = "boj")]
@@ -39,6 +39,10 @@ enum Commands {
         #[arg(short, long, default_value = "nil")]
         extension: String,
     },
+    Submit {
+        /// 문제 ID
+        problem_id: u32,
+    }
 }
 
 #[tokio::main]
@@ -56,6 +60,11 @@ async fn main() {
         } => add::add(problem_id, force, extension)
             .await
             .map_err(|e| e.into()),
+        Commands::Submit { problem_id } => {
+            submit::submit(problem_id)
+                .await
+                .map_err(|e| e.into())
+        }
     };
 
     if let Err(err) = result {
